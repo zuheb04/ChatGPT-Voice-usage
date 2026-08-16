@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiet Compose — Interactive Prototype</title>
+<style>
+  :root{
+    --navy:#1B2A4A;
+    --saffron:#E08A2C;
+    --saffron-light:#F4E3C8;
+    --card-bg:#F7F8FB;
+    --text-muted:#5B6478;
+    --line:#DADFE8;
+    --white:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Calibri,Arial,sans-serif;
+    background:linear-gradient(180deg,#F7F8FB 0%,#EDEFF4 100%);
+    color:var(--navy);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:28px 16px 60px;
+  }
+  header{
+    max-width:760px;
+    text-align:center;
+    margin-bottom:22px;
+  }
+  header h1{
+    font-family:Georgia,"Cambria",serif;
+    font-size:26px;
+    margin:0 0 8px;
+    color:var(--navy);
+  }
+  header p{
+    font-size:14.5px;
+    color:var(--text-muted);
+    line-height:1.5;
+    margin:0;
+  }
+  .layout{
+    display:flex;
+    gap:36px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    justify-content:center;
+    max-width:900px;
+  }
+  /* ---------- phone ---------- */
+  .phone{
+    width:300px;
+    height:600px;
+    background:var(--white);
+    border:3px solid #2B2B2B;
+    border-radius:34px;
+    box-shadow:0 18px 40px rgba(27,42,74,0.18);
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    flex-shrink:0;
+  }
+  .notch{
+    width:70px;height:8px;background:#2B2B2B;border-radius:4px;
+    position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  }
+  .app-header{
+    padding:34px 16px 12px;
+    text-align:center;
+    font-weight:700;
+    font-size:15px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .chat-area{
+    flex:1;
+    padding:16px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .bubble{
+    max-width:78%;
+    padding:10px 13px;
+    border-radius:14px;
+    font-size:13.5px;
+    line-height:1.45;
+    animation:pop .25s ease;
+  }
+  @keyframes pop{from{opacity:0;transform:translateY(6px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+  .bubble.ai{
+    background:var(--card-bg);
+    border:1px solid var(--line);
+    align-self:flex-start;
+    color:#2A3350;
+  }
+  .bubble.user{
+    background:var(--navy);
+    color:#fff;
+    align-self:flex-end;
+  }
+  .bubble.user .gloss{ color:#B9C1D6; font-size:11.5px; margin-top:3px; font-style:italic;}
+  .bubble .gloss{ color:var(--text-muted); font-size:11.5px; margin-top:3px; font-style:italic;}
+  .bubble.ai-reply-row{
+    display:flex; align-items:flex-end; gap:6px; align-self:flex-start; max-width:82%;
+  }
+  .speaker-btn{
+    width:26px;height:26px;border-radius:50%;
+    border:1.5px solid var(--line); background:#fff;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer; flex-shrink:0; font-size:12px;
+    transition:transform .15s ease, background .15s ease;
+  }
+  .speaker-btn:hover{ background:var(--saffron-light); }
+  .speaker-btn.playing{ background:var(--saffron); border-color:var(--saffron); animation:pulseIcon 1s infinite; }
+  @keyframes pulseIcon{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+
+  .typing-dots{ display:flex; gap:4px; padding:10px 13px; align-self:flex-start; }
+  .typing-dots span{ width:6px;height:6px;border-radius:50%;background:#9AA3B8; animation:blink 1.2s infinite; }
+  .typing-dots span:nth-child(2){animation-delay:.2s;}
+  .typing-dots span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+  .hint-bubble{
+    background:var(--saffron-light);
+    border:1.5px solid var(--saffron);
+    border-radius:12px;
+    padding:10px 12px;
+    font-size:12px;
+    color:var(--navy);
+    align-self:flex-start;
+    max-width:75%;
+    animation:pop .3s ease;
+  }
+  .hint-bubble b{display:block; margin-bottom:2px; font-size:12.5px;}
+
+  /* listening overlay */
+  .listen-panel{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    padding:30px 16px;
+    flex:1;
+  }
+  .listen-panel.active{ display:flex; }
+  .mic-ring-wrap{ position:relative; width:120px; height:120px; display:flex; align-items:center; justify-content:center; }
+  .ring{ position:absolute; border-radius:50%; border:2px solid var(--saffron); opacity:.5; }
+  .ring.r1{ width:120px;height:120px; animation:ringPulse 1.8s infinite ease-out; }
+  .ring.r2{ width:90px;height:90px; animation:ringPulse 1.8s infinite ease-out .3s; }
+  @keyframes ringPulse{0%{transform:scale(.7);opacity:.6}100%{transform:scale(1.25);opacity:0}}
+  .mic-core{
+    width:60px;height:60px;border-radius:50%;
+    background:var(--saffron); color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-size:24px; z-index:2; cursor:pointer;
+    box-shadow:0 4px 14px rgba(224,138,44,0.4);
+  }
+  .listen-label{ font-size:13px; font-style:italic; color:var(--text-muted); }
+  .wave{ display:flex; gap:4px; align-items:center; height:22px; }
+  .wave span{ width:4px; background:var(--saffron); border-radius:2px; animation:wave 1s infinite ease-in-out; }
+  .wave span:nth-child(1){height:6px;animation-delay:0s;}
+  .wave span:nth-child(2){height:14px;animation-delay:.1s;}
+  .wave span:nth-child(3){height:20px;animation-delay:.2s;}
+  .wave span:nth-child(4){height:10px;animation-delay:.3s;}
+  .wave span:nth-child(5){height:18px;animation-delay:.4s;}
+  .wave span:nth-child(6){height:8px;animation-delay:.5s;}
+  @keyframes wave{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+
+  /* transcript review panel */
+  .review-panel{
+    display:none;
+    margin:0 16px 12px;
+    border:1.5px dashed var(--saffron);
+    background:var(--card-bg);
+    border-radius:12px;
+    padding:12px;
+  }
+  .review-panel.active{ display:block; animation:pop .25s ease; }
+  .review-text{
+    font-size:14.5px; min-height:22px;
+    color:#2A3350;
+  }
+  .review-text .cursor{ display:inline-block; width:2px; background:var(--navy); margin-left:1px; animation:caret 1s infinite; }
+  @keyframes caret{50%{opacity:0}}
+  .review-note{ font-size:10.5px; color:var(--text-muted); margin-top:4px; font-style:italic; }
+  .review-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
+  .edit-pill{
+    border:1px solid var(--line); background:#fff; border-radius:14px;
+    padding:6px 12px; font-size:12px; color:var(--navy); cursor:pointer; display:flex; align-items:center; gap:5px;
+  }
+  .send-pill{
+    border:none; background:var(--saffron); color:#fff; border-radius:14px;
+    padding:7px 18px; font-size:13px; font-weight:700; cursor:pointer;
+  }
+  .send-pill:disabled{ opacity:.5; cursor:not-allowed; }
+
+  .input-bar{
+    display:flex; align-items:center; gap:10px;
+    padding:12px 16px 18px;
+    border-top:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .text-field{
+    flex:1; background:var(--card-bg); border:1px solid var(--line);
+    border-radius:20px; padding:10px 14px; font-size:12.5px; color:var(--text-muted);
+  }
+  .mic-btn{
+    width:42px;height:42px;border-radius:50%;background:var(--navy);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:18px;
+    cursor:pointer; border:none; flex-shrink:0;
+    transition:transform .15s ease;
+  }
+  .mic-btn:hover{ transform:scale(1.06); }
+  .mic-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  /* ---------- side panel ---------- */
+  .side{
+    width:300px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .panel-card{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+  }
+  .panel-card h3{
+    margin:0 0 8px; font-size:14px; color:var(--navy); font-family:Georgia,serif;
+  }
+  .step-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--saffron-light); color:#8A5416;
+    font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:12px;
+    margin-bottom:10px;
+  }
+  .step-desc{ font-size:13px; color:#2A3350; line-height:1.5; min-height:56px; }
+  select, .toggle-row{ width:100%; }
+  select{
+    padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+    font-size:12.5px; color:var(--navy); background:#fff; margin-top:6px;
+  }
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:12.5px; color:var(--navy); margin-top:12px;
+  }
+  .switch{ position:relative; width:38px; height:21px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider{
+    position:absolute; cursor:pointer; inset:0; background:#C7CCD6; border-radius:20px; transition:.2s;
+  }
+  .slider:before{
+    content:""; position:absolute; width:15px; height:15px; left:3px; top:3px;
+    background:#fff; border-radius:50%; transition:.2s;
+  }
+  input:checked + .slider{ background:var(--saffron); }
+  input:checked + .slider:before{ transform:translateX(17px); }
+  .btn-row{ display:flex; gap:8px; margin-top:14px; }
+  .btn{
+    flex:1; padding:10px; border-radius:9px; border:none; font-size:12.5px; font-weight:700;
+    cursor:pointer; transition:opacity .15s ease;
+  }
+  .btn.primary{ background:var(--saffron); color:#fff; }
+  .btn.ghost{ background:var(--card-bg); color:var(--navy); border:1px solid var(--line); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn:hover:not(:disabled){ opacity:.88; }
+  .note{ font-size:11px; color:var(--text-muted); line-height:1.5; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Quiet Compose — Interactive Prototype</h1>
+  <p>A whisper-friendly, preview-before-send voice input flow for regional-language ChatGPT users.
+  Press <b>Start</b> to walk through it — nothing here uses your real microphone or leaves this page.</p>
+</header>
+
+<div class="layout">
+
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="app-header">ChatGPT</div>
+
+    <div class="chat-area" id="chatArea">
+      <div class="bubble ai">How can I help you today?</div>
+    </div>
+
+    <div class="listen-panel" id="listenPanel">
+      <div class="mic-ring-wrap">
+        <div class="ring r1"></div>
+        <div class="ring r2"></div>
+        <div class="mic-core">🎙️</div>
+      </div>
+      <div class="wave">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="listen-label">Listening quietly...</div>
+    </div>
+
+    <div class="review-panel" id="reviewPanel">
+      <div class="review-text" id="reviewText"><span class="cursor">&nbsp;</span></div>
+      <div class="review-note" id="reviewGloss"></div>
+      <div class="review-actions">
+        <button class="edit-pill" id="editPill">✏️ Edit</button>
+        <button class="send-pill" id="sendPill" disabled>Send</button>
+      </div>
+    </div>
+
+    <div class="input-bar" id="inputBar">
+      <div class="text-field">Message ChatGPT…</div>
+      <button class="mic-btn" id="micBtn" title="Tap to speak">🎙️</button>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="panel-card">
+      <div class="step-badge" id="stepBadge">Step 0 · Ready</div>
+      <h3>What's happening</h3>
+      <div class="step-desc" id="stepDesc">Tap <b>Start</b> below to see how a regional-language user discovers and uses voice input for the first time.</div>
+    </div>
+
+    <div class="panel-card">
+      <h3>Try a phrase</h3>
+      <select id="phraseSelect">
+        <option value="0">Weather — मौसम</option>
+        <option value="1">Ask for a story — कहानी</option>
+        <option value="2">Study help — पढ़ाई</option>
+      </select>
+
+      <div class="toggle-row">
+        <span>Auto-play replies aloud</span>
+        <label class="switch">
+          <input type="checkbox" id="autoplayToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="note">Off by default — replies stay text-first so no one else hears the answer either. Tap the speaker icon on a reply to hear it (uses your browser's built-in voice, if available).</div>
+
+      <div class="btn-row">
+        <button class="btn primary" id="startBtn">▶ Start</button>
+        <button class="btn ghost" id="resetBtn">↻ Reset</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const phrases = [
+    {
+      hi: "आज मौसम कैसा है",
+      gloss: "aaj mausam kaisa hai — \u201cWhat's the weather like today?\u201d",
+      replyHi: "आज मौसम साफ़ है, तापमान लगभग 28 डिग्री है।",
+      replyGloss: "The weather is clear today, around 28 degrees."
+    },
+    {
+      hi: "मुझे एक छोटी कहानी सुनाओ",
+      gloss: "mujhe ek chhoti kahani sunao — \u201cTell me a short story\u201d",
+      replyHi: "एक बार की बात है, एक छोटे से गाँव में एक बुद्धिमान लड़की रहती थी।",
+      replyGloss: "Once upon a time, a wise girl lived in a small village."
+    },
+    {
+      hi: "पढ़ाई में मदद चाहिए",
+      gloss: "padhai mein madad chahiye — \u201cI need help studying\u201d",
+      replyHi: "बिल्कुल! आप किस विषय में मदद चाहते हैं?",
+      replyGloss: "Of course! Which subject do you need help with?"
+    }
+  ];
+
+  const chatArea = document.getElementById('chatArea');
+  const listenPanel = document.getElementById('listenPanel');
+  const reviewPanel = document.getElementById('reviewPanel');
+  const reviewText = document.getElementById('reviewText');
+  const reviewGloss = document.getElementById('reviewGloss');
+  const inputBar = document.getElementById('inputBar');
+  const micBtn = document.getElementById('micBtn');
+  const editPill = document.getElementById('editPill');
+  const sendPill = document.getElementById('sendPill');
+  const stepBadge = document.getElementById('stepBadge');
+  const stepDesc = document.getElementById('stepDesc');
+  const phraseSelect = document.getElementById('phraseSelect');
+  const autoplayToggle = document.getElementById('autoplayToggle');
+  const startBtn = document.getElementById('startBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  let running = false;
+  let currentTranscript = "";
+  let typeTimer = null;
+
+  function setStep(n, label, desc){
+    stepBadge.textContent = "Step " + n + " \u00b7 " + label;
+    stepDesc.innerHTML = desc;
+  }
+
+  function addHint(){
+    const hint = document.createElement('div');
+    hint.className = 'hint-bubble';
+    hint.innerHTML = '<b>Try speaking in Hindi</b>Watch your words appear as you talk';
+    chatArea.appendChild(hint);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return hint;
+  }
+
+  function addUserBubble(hi, gloss){
+    const b = document.createElement('div');
+    b.className = 'bubble user';
+    b.innerHTML = hi + '<div class="gloss">' + gloss + '</div>';
+    chatArea.appendChild(b);
+    chatArea.scrollTop = chatArea.scrollHeight;
+  }
+
+  function addTypingDots(){
+    const d = document.createElement('div');
+    d.className = 'typing-dots';
+    d.id = 'typingDots';
+    d.innerHTML = '<span></span><span></span><span></span>';
+    chatArea.appendChild(d);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return d;
+  }
+
+  function speak(text){
+    if (!('speechSynthesis' in window)) {
+      return; // graceful no-op if the browser has no speech synthesis support
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'hi-IN';
+      u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    } catch(e) { /* graceful no-op */ }
+  }
+
+  function addAiReply(hi, gloss){
+    const row = document.createElement('div');
+    row.className = 'bubble ai-reply-row';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble ai';
+    bubble.innerHTML = hi + '<div class="gloss">' + gloss + '</div>';
+    const spk = document.createElement('div');
+    spk.className = 'speaker-btn';
+    spk.textContent = '🔈';
+    spk.title = 'Tap to hear this reply (off by default)';
+    spk.onclick = function(){
+      spk.classList.add('playing');
+      spk.textContent = '🔊';
+      speak(hi);
+      setTimeout(function(){ spk.classList.remove('playing'); spk.textContent='🔈'; }, 1800);
+    };
+    row.appendChild(bubble);
+    row.appendChild(spk);
+    chatArea.appendChild(row);
+    chatArea.scrollTop = chatArea.scrollHeight;
+
+    if (autoplayToggle.checked) {
+      spk.click();
+    }
+  }
+
+  function typewriter(text, el, done){
+    let i = 0;
+    el.innerHTML = '';
+    const span = document.createElement('span');
+    el.appendChild(span);
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    cursor.innerHTML = '&nbsp;';
+    el.appendChild(cursor);
+    clearInterval(typeTimer);
+    typeTimer = setInterval(function(){
+      span.textContent = text.slice(0, i+1);
+      i++;
+      if (i >= text.length){
+        clearInterval(typeTimer);
+        if (done) done();
+      }
+    }, 70);
+  }
+
+  function resetUI(){
+    running = false;
+    clearInterval(typeTimer);
+    chatArea.innerHTML = '<div class="bubble ai">How can I help you today?</div>';
+    listenPanel.classList.remove('active');
+    reviewPanel.classList.remove('active');
+    inputBar.style.display = 'flex';
+    micBtn.disabled = false;
+    sendPill.disabled = true;
+    setStep(0, 'Ready', "Tap <b>Start</b> below to see how a regional-language user discovers and uses voice input for the first time.");
+  }
+
+  async function runDemo(){
+    if (running) return;
+    running = true;
+    startBtn.disabled = true;
+    const phrase = phrases[parseInt(phraseSelect.value, 10)];
+
+    chatArea.innerHTML = '<div class="bubble ai">How can I help you today?</div>';
+    reviewPanel.classList.remove('active');
+    listenPanel.classList.remove('active');
+    inputBar.style.display = 'flex';
+
+    // Step 1: Discovery — hint appears
+    setStep(1, 'Discovery', 'A one-time hint appears the first time this user types in a non-English script — pointing at the <b>existing</b> mic icon, not a new one.');
+    addHint();
+    await wait(1600);
+
+    // Step 2: user taps mic -> listening
+    setStep(2, 'Quiet Listening', 'User taps the mic and speaks softly. The pulsing ring and waveform confirm it\u2019s listening \u2014 even at whisper volume.');
+    inputBar.style.display = 'none';
+    listenPanel.classList.add('active');
+    await wait(2200);
+
+    // Step 3: transcript builds live
+    listenPanel.classList.remove('active');
+    inputBar.style.display = 'flex';
+    micBtn.disabled = true;
+    reviewPanel.classList.add('active');
+    setStep(3, 'Live Transcript', 'The transcript builds in real time, in the user\u2019s own script \u2014 proving comprehension before anything is sent.');
+    reviewGloss.textContent = phrase.gloss;
+    await new Promise(function(resolve){ typewriter(phrase.hi, reviewText, resolve); });
+    sendPill.disabled = false;
+
+    setStep(4, 'Review & Edit', 'Nothing sends automatically. The user can tap \u270f\ufe0f to fix a misheard word, exactly like editing typed text, before choosing to send.');
+    await wait(1400);
+
+    running = false;
+    startBtn.disabled = false;
+  }
+
+  function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  editPill.addEventListener('click', function(){
+    if (!reviewPanel.classList.contains('active')) return;
+    const span = reviewText.querySelector('span');
+    if (!span) return;
+    const newText = prompt('Edit the transcript (demonstrates tap-to-fix before sending):', span.textContent);
+    if (newText !== null && newText.trim() !== '') {
+      span.textContent = newText;
+    }
+  });
+
+  sendPill.addEventListener('click', async function(){
+    if (sendPill.disabled) return;
+    const phrase = phrases[parseInt(phraseSelect.value, 10)];
+    const span = reviewText.querySelector('span');
+    const finalText = span ? span.textContent : phrase.hi;
+
+    reviewPanel.classList.remove('active');
+    addUserBubble(finalText, phrase.gloss);
+    sendPill.disabled = true;
+
+    setStep(5, 'Sending', 'The message sends only now \u2014 after explicit confirmation, the same control typing already offers.');
+    const dots = addTypingDots();
+    await wait(1100);
+    dots.remove();
+
+    setStep(6, 'Text-First Reply', 'The reply renders as text first, never spoken aloud automatically. Tap the speaker icon to opt in to hearing it \u2014 the response stays as private as the question.');
+    addAiReply(phrase.replyHi, phrase.replyGloss);
+
+    await wait(300);
+    setStep(7, 'Done', 'That\u2019s the full loop. Press <b>Reset</b> to try a different phrase, or toggle auto-play to see the alternative default.');
+  });
+
+  micBtn.addEventListener('click', function(){
+    if (!running) runDemo();
+  });
+  startBtn.addEventListener('click', runDemo);
+  resetBtn.addEventListener('click', resetUI);
+
+  resetUI();
+})();
+</script>
+
+</body>
+</html>
